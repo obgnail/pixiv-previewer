@@ -40,6 +40,11 @@
             padding: 10px;
         }
 
+        .imagepopup .image-container {
+            display: flex;
+            flex-flow: column;
+        }
+        
         .imagepopup img {
             width: 270px;
             height: auto;
@@ -86,6 +91,23 @@
             default:
                 return null;
         }
+    }
+
+    function getImageUrls(firstUrl, pageCount) {
+        let splashIdx = firstUrl.lastIndexOf("/")
+        let basename = firstUrl.substring(splashIdx + 1)
+        let dirpath = firstUrl.substring(0, splashIdx + 1)
+
+        let urls = [];
+        for (let i = 0, max = pageCount; i < max; i++) {
+            let newBasename = basename.replace("p0", `p${i}`);
+            let newUrl = dirpath + newBasename;
+            urls.push({
+                url: newUrl,
+                basename: newBasename
+            })
+        }
+        return urls
     }
 
     function requestImage(url, imgHandler) {
@@ -235,11 +257,16 @@
                 if (workInfo === null) {
                     popup.innerHTML = "<div class='message'>Work not found.</span>";
                 } else {
-                    requestImage(workInfo.img, function (img) {
-                        imgContainer.appendChild(img);
-                    })
-
                     const imgContainer = document.createElement("div")
+                    imgContainer.className = "image-container"
+
+                    let images = getImageUrls(workInfo.img, workInfo.pageCount)
+                    images.forEach((image, index) => {
+                        if (index >= 3) {
+                            return;
+                        }
+                        requestImage(image.url, (img) => imgContainer.appendChild(img))
+                    })
 
                     let html = `<div class=${IMAGE_INTRO_CLASS}>
                             Title: <a>${workInfo.title}</a><br />
@@ -263,7 +290,7 @@
 
                     // tags
                     html += `Tags: <a>`
-                    for (var i = 0, max = workInfo.tags.length; i < max; i++) {
+                    for (let i = 0, max = workInfo.tags.length; i < max; i++) {
                         html += workInfo.tags[i] + "\u3000";
                     }
                     html += "</a><br />";
@@ -359,25 +386,16 @@
                     return
                 }
 
-                let first = workInfo.original_img
-                let splashIdx = first.lastIndexOf("/")
-                let basename = first.substring(splashIdx + 1)
-                let dir = first.substring(0, splashIdx) + "/"
-
-                for (var i = 0, max = workInfo.pageCount; i < max; i++) {
-                    let newBasename = basename.replace("p0", `p${i}`);
-                    let newUrl = dir + newBasename;
-
-                    requestImage(newUrl, function (img) {
-                        let _basename = newBasename;
+                let images = getImageUrls(workInfo.original_img, workInfo.pageCount)
+                images.forEach((image) => {
+                    requestImage(image.url, (img) => {
                         const link = document.createElement('a');
                         link.href = img.src;
-                        link.download = _basename;
+                        link.download = image.basename;
                         link.click();
-
                         _div.innerText = `Downloaded`;
                     })
-                }
+                })
             });
         }
     }
@@ -404,7 +422,7 @@
             workInfo.description = image["description"]
 
             workInfo.tags = [];
-            for (var i = 0, max = image["tags"]["tags"].length; i < max; i++) {
+            for (let i = 0, max = image["tags"]["tags"].length; i < max; i++) {
                 const tag = image["tags"]["tags"][i];
                 const name = tag["translation"] ? tag["translation"]["en"] : tag["tag"];
                 workInfo.tags.push(name);
