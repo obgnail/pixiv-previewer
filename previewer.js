@@ -13,7 +13,7 @@
 
 (function () {
     'use strict';
-    const PIXIV_REGEX = new RegExp("pixiv[0-9]{6,9}", "gi");
+    const PIXIV_REGEX = new RegExp("pid[:：=\-]?([0-9]{6,9})", "gi");
     const ARTLINK_CLASS = 'artlink';
     const ARTCODE_ATTRIBUTE = 'artcode';
 
@@ -132,15 +132,13 @@
             }
         },
 
-        wrapArtCode: function (artCode) {
-            let code = artCode.substring(5)
-
+        wrapArtCode: function (art) {
             var e;
             e = document.createElement("a");
             e.classList = ARTLINK_CLASS;
             e.href = "javascript:;"
-            e.innerHTML = artCode;
-            e.setAttribute(ARTCODE_ATTRIBUTE, code);
+            e.innerHTML = art.value;
+            e.setAttribute(ARTCODE_ATTRIBUTE, art.number);
             e.addEventListener("mouseover", Popup.over);
             e.addEventListener("mouseout", Popup.out);
             e.addEventListener("mousemove", Popup.move);
@@ -158,6 +156,7 @@
                 matches.push({
                     index: match.index,
                     value: match[0],
+                    number: match[1],
                 });
             }
 
@@ -169,7 +168,7 @@
             for (let i = 0; i < matches.length; ++i) {
 
                 // Insert linkified code
-                const linkNode = Parser.wrapArtCode(matches[i].value);
+                const linkNode = Parser.wrapArtCode(matches[i]);
                 textNode.parentNode.insertBefore(
                     linkNode,
                     prevNode ? prevNode.nextSibling : textNode.nextSibling,
@@ -263,9 +262,9 @@
                     // tags
                     html += `Tags: <a>`
                     for (var i = 0, max = workInfo.tags.length; i < max; i++) {
-                        if (i != 0 && i % 6 == 0) {
-                            html += `<br />` + "\u3000\u3000"
-                        }
+                        // if (i != 0 && i % 6 == 0) {
+                        //     html += `<br />` + "\u3000\u3000"
+                        // }
                         html += workInfo.tags[i] + "\u3000";
                     }
                     html += "</a><br />";
@@ -332,6 +331,11 @@
         download: function (e) {
             clearTimeout(Popup._time);
             const code = e.target.getAttribute(ARTCODE_ATTRIBUTE);
+            // const popup = document.querySelector("div#img-" + code);
+            // if (popup) {
+            //     console.log(popup)
+            // }
+
             PixivNet.request(code, function (workInfo) {
                 if (workInfo === null) {
                     alert("work not found");
@@ -344,13 +348,14 @@
                 let dir = first.substring(0, splashIdx) + "/"
 
                 for (var i = 0, max = workInfo.pageCount; i < max; i++) {
-                    let newBasename = basename.replace("p0", `p${i}`)
-                    let newUrl = dir + newBasename
+                    let newBasename = basename.replace("p0", `p${i}`);
+                    let newUrl = dir + newBasename;
 
                     requestImage(newUrl, function (img) {
+                        let _basename = newBasename;
                         const link = document.createElement('a');
                         link.href = img.src;
-                        link.download = newBasename;
+                        link.download = _basename;
                         link.click();
                     })
                 }
