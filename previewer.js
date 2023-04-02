@@ -44,7 +44,7 @@
             display: flex;
             flex-flow: column;
         }
-        
+
         .imagepopup img {
             width: 270px;
             height: auto;
@@ -139,20 +139,23 @@
                 NodeFilter.SHOW_TEXT,
                 {
                     acceptNode: function (node) {
-                        if (node.parentElement.classList.contains(ARTLINK_CLASS))
+                        if (node.parentElement.classList.contains(ARTLINK_CLASS)) {
                             return NodeFilter.FILTER_ACCEPT;
-                        if (node.nodeValue.match(PIXIV_REGEX))
+                        }
+                        if (node.nodeValue.match(PIXIV_REGEX)) {
                             return NodeFilter.FILTER_ACCEPT;
+                        }
                     }
                 },
                 false,
             );
             while (nodeTreeWalker.nextNode()) {
                 const node = nodeTreeWalker.currentNode;
-                if (node.parentElement.classList.contains(ARTLINK_CLASS))
+                if (node.parentElement.classList.contains(ARTLINK_CLASS)) {
                     Parser.rebindEvents(node.parentElement);
-                else
+                } else {
                     Parser.linkify(node);
+                }
             }
         },
 
@@ -200,10 +203,11 @@
 
                 // Insert text after if there is any
                 let upper;
-                if (i === matches.length - 1)
+                if (i === matches.length - 1) {
                     upper = undefined;
-                else
+                } else {
                     upper = matches[i + 1].index;
+                }
                 let substring;
                 if (substring === nodeOriginalText.substring(matches[i].index + matches[i].value.length, upper)) {
                     const subtextNode = document.createTextNode(substring);
@@ -297,7 +301,7 @@
 
                     if (workInfo.description.length !== 0) {
                         let desc = workInfo.description
-                        let maxLen = 200
+                        let maxLen = 300
                         if (desc.length > maxLen) {
                             desc = desc.substring(0, maxLen) + "..."
                         }
