@@ -15,16 +15,20 @@
     'use strict';
     // const PIXIV_REGEX = new RegExp("pid[:：=\-]?([0-9]{6,9})", "gi");
     const PIXIV_REGEX = new RegExp("pid[^0-9]?([0-9]{6,9})", "gi");
-    const ARTLINK_CLASS = 'artlink';
+    const MAX_PREVIEW = 2;
+    const DESC_MAX_LEN = 300;
+    const CLICK_TIMEOUT = 250;
+
+    const ART_LINK_CLASS = 'art-link';
     const IMAGE_INTRO_CLASS = 'image-intro'
-    const ARTCODE_ATTRIBUTE = 'artcode';
+    const ART_CODE_ATTRIBUTE = 'art-code';
 
     const DEFAULT_HEADERS = {
         "referer": "https://www.pixiv.net/",
         "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:67.0)"
     }
     const css = `
-        .imagepopup {
+        .image-popup {
             min-width: 600px !important;
             z-index: 50000 !important;
             max-width: 80% !important;
@@ -40,12 +44,12 @@
             padding: 10px;
         }
 
-        .imagepopup .image-container {
+        .image-popup .image-container {
             display: flex;
             flex-flow: column;
         }
 
-        .imagepopup img {
+        .image-popup img {
             width: 270px;
             height: auto;
             margin: 3px 15px 3px 3px;
@@ -59,7 +63,7 @@
             display: block;
         }
 
-        .artcode {
+        .art-code {
             text-align: center;
             font-size: 1.2em;
             font-style: italic;
@@ -94,14 +98,14 @@
     }
 
     function getImageUrls(firstUrl, pageCount) {
-        let splashIdx = firstUrl.lastIndexOf("/")
-        let basename = firstUrl.substring(splashIdx + 1)
-        let dirpath = firstUrl.substring(0, splashIdx + 1)
+        let slashIdx = firstUrl.lastIndexOf("/")
+        let basename = firstUrl.substring(slashIdx + 1)
+        let dirPath = firstUrl.substring(0, slashIdx + 1)
 
         let urls = [];
         for (let i = 0, max = pageCount; i < max; i++) {
             let newBasename = basename.replace("p0", `p${i}`);
-            let newUrl = dirpath + newBasename;
+            let newUrl = dirPath + newBasename;
             urls.push({
                 url: newUrl,
                 basename: newBasename
@@ -139,7 +143,7 @@
                 NodeFilter.SHOW_TEXT,
                 {
                     acceptNode: function (node) {
-                        if (node.parentElement.classList.contains(ARTLINK_CLASS)) {
+                        if (node.parentElement.classList.contains(ART_LINK_CLASS)) {
                             return NodeFilter.FILTER_ACCEPT;
                         }
                         if (node.nodeValue.match(PIXIV_REGEX)) {
@@ -151,21 +155,20 @@
             );
             while (nodeTreeWalker.nextNode()) {
                 const node = nodeTreeWalker.currentNode;
-                if (node.parentElement.classList.contains(ARTLINK_CLASS)) {
+                if (node.parentElement.classList.contains(ART_LINK_CLASS)) {
                     Parser.rebindEvents(node.parentElement);
                 } else {
-                    Parser.linkify(node);
+                    Parser.link(node);
                 }
             }
         },
 
         wrapArtCode: function (art) {
-            var e;
-            e = document.createElement("a");
-            e.classList = ARTLINK_CLASS;
+            let e = document.createElement("a");
+            e.classList = ART_LINK_CLASS;
             e.href = "javascript:;"
             e.innerHTML = art.value;
-            e.setAttribute(ARTCODE_ATTRIBUTE, art.number);
+            e.setAttribute(ART_CODE_ATTRIBUTE, art.number);
             e.addEventListener("mouseover", Popup.over);
             e.addEventListener("mouseout", Popup.out);
             e.addEventListener("mousemove", Popup.move);
@@ -174,7 +177,7 @@
             return e;
         },
 
-        linkify: function (textNode) {
+        link: function (textNode) {
             const nodeOriginalText = textNode.nodeValue;
             const matches = [];
 
@@ -190,11 +193,11 @@
             // Keep text in text node until first code
             textNode.nodeValue = nodeOriginalText.substring(0, matches[0].index);
 
-            // Insert rest of text while linkifying codes
+            // Insert rest of text while link codes
             let prevNode = null;
             for (let i = 0; i < matches.length; ++i) {
 
-                // Insert linkified code
+                // Insert link code
                 const linkNode = Parser.wrapArtCode(matches[i]);
                 textNode.parentNode.insertBefore(
                     linkNode,
@@ -230,14 +233,14 @@
                 elem.addEventListener("click", Popup.open)
                 elem.addEventListener("dblclick", Popup.download)
             } else {
-                const imagelinks = elem.querySelectorAll("." + ARTLINK_CLASS);
-                for (var i = 0, max = imagelinks.length; i < max; i++) {
-                    const artlink = imagelinks[i];
-                    artlink.addEventListener("mouseover", Popup.over);
-                    artlink.addEventListener("mouseout", Popup.out);
-                    artlink.addEventListener("mousemove", Popup.move);
-                    artlink.addEventListener("click", Popup.open)
-                    artlink.addEventListener("dblclick", Popup.download)
+                const imageLinks = elem.querySelectorAll("." + ART_LINK_CLASS);
+                for (let i = 0, max = imageLinks.length; i < max; i++) {
+                    const artLink = imageLinks[i];
+                    artLink.addEventListener("mouseover", Popup.over);
+                    artLink.addEventListener("mouseout", Popup.out);
+                    artLink.addEventListener("mousemove", Popup.move);
+                    artLink.addEventListener("click", Popup.open)
+                    artLink.addEventListener("dblclick", Popup.download)
                 }
             }
         },
@@ -246,80 +249,77 @@
 
     const Popup = {
         _time: 300,
-        _timeout: 250,
 
         makePopup: function (e, code) {
             const popup = document.createElement("div");
-            popup.className = "imagepopup " + (getAdditionalPopupClasses() || '');
+            popup.className = "image-popup " + (getAdditionalPopupClasses() || '');
             popup.id = "img-" + code;
             popup.style = "display: flex";
             document.body.appendChild(popup);
 
-            popup.innerHTML = "<div class='message'>Searching...</span>";
+            popup.innerHTML = "<div class='message'>Searching...</div>";
 
-            PixivNet.request(code, function (workInfo) {
+            PixivNet.request(code, (workInfo) => {
                 if (workInfo === null) {
-                    popup.innerHTML = "<div class='message'>Work not found.</span>";
-                } else {
-                    const imgContainer = document.createElement("div")
-                    imgContainer.className = "image-container"
-
-                    let images = getImageUrls(workInfo.img, workInfo.pageCount)
-                    images.forEach((image, index) => {
-                        if (index >= 3) {
-                            return;
-                        }
-                        requestImage(image.url, (img) => imgContainer.appendChild(img))
-                    })
-
-                    let html = `<div class=${IMAGE_INTRO_CLASS}>
-                            Title: <a>${workInfo.title}</a><br />
-                            Code: <a>${workInfo.code}</a><br />
-                            Author: <a>${workInfo.author}</a><br />
-                    `;
-
-                    if (workInfo.createDate) {
-                        const d = new Date(workInfo.createDate);
-                        const Y = d.getFullYear();
-                        const M = d.getMonth() + 1;
-                        const D = d.getDate();
-                        const times = Y + (M < 10 ? "-0" : "-") + M + (D < 10 ? "-0" : "-") + D;
-                        html += `Release: <a>${times}</a> <br />`;
-                    }
-
-                    html += `Like: <a>${workInfo.likeCount}</a><br />
-                             Page: <a>${workInfo.pageCount}</a><br />
-                             Size: <a>${workInfo.width} × ${workInfo.height}</a><br />
-                    `;
-
-                    // tags
-                    html += `Tags: <a>`
-                    for (let i = 0, max = workInfo.tags.length; i < max; i++) {
-                        html += workInfo.tags[i] + "\u3000";
-                    }
-                    html += "</a><br />";
-
-                    if (workInfo.description.length !== 0) {
-                        let desc = workInfo.description
-                        let maxLen = 300
-                        if (desc.length > maxLen) {
-                            desc = desc.substring(0, maxLen) + "..."
-                        }
-                        html += `Desc: <a>${desc}</a><br />`
-                    }
-
-                    html += "</div>";
-                    popup.innerHTML = html;
-
-                    popup.insertBefore(imgContainer, popup.childNodes[0]);
+                    popup.innerHTML = "<div class='message'>Work not found.</div>";
+                    Popup.move(e);
+                    return
                 }
 
+                const imgContainer = document.createElement("div")
+                imgContainer.className = "image-container"
+
+                let images = getImageUrls(workInfo.img, workInfo.pageCount)
+                images.forEach((image, index) => {
+                    if (index >= MAX_PREVIEW) {
+                        return;
+                    }
+                    requestImage(image.url, (img) => imgContainer.appendChild(img))
+                })
+
+                // tags
+                let tags = workInfo.tags.join("\u3000")
+
+                // time
+                let times = "unknown"
+                if (workInfo.createDate) {
+                    const d = new Date(workInfo.createDate);
+                    const Y = d.getFullYear();
+                    const M = d.getMonth() + 1;
+                    const D = d.getDate();
+                    times = Y + (M < 10 ? "-0" : "-") + M + (D < 10 ? "-0" : "-") + D;
+                }
+
+                // desc
+                let desc = workInfo.description.trim()
+                if (desc.length === 0) {
+                    desc = "null"
+                } else if (desc.length > DESC_MAX_LEN) {
+                    desc = desc.substring(0, DESC_MAX_LEN) + "..."
+                }
+                desc = desc.trim()
+
+                popup.innerHTML = `
+                        <div class=${IMAGE_INTRO_CLASS}>
+                            Title:<a>${workInfo.title}</a><br />
+                            Code:<a>${workInfo.code}</a><br />
+                            Author:<a>${workInfo.author}</a><br />
+                            Time:<a>${times}</a> <br />
+                            Like:<a>${workInfo.likeCount}</a><br />
+                            Page:<a>${workInfo.pageCount}</a><br />
+                            Size:<a>${workInfo.width} × ${workInfo.height}</a><br />
+                            Tags:<a>${tags}</a><br />
+                            Desc:<a>${desc}</a><br />
+                        </div>
+                    `;
+
+                popup.insertBefore(imgContainer, popup.childNodes[0]);
                 Popup.move(e);
             });
         },
 
         over: function (e) {
-            const code = e.target.getAttribute(ARTCODE_ATTRIBUTE);
+            const code = e.target.getAttribute(ART_CODE_ATTRIBUTE);
             const popup = document.querySelector("div#img-" + code);
             if (popup) {
                 const style = popup.getAttribute("style").replace("none", "flex");
@@ -330,7 +330,7 @@
         },
 
         out: function (e) {
-            const code = e.target.getAttribute(ARTCODE_ATTRIBUTE);
+            const code = e.target.getAttribute(ART_CODE_ATTRIBUTE);
             const popup = document.querySelector("div#img-" + code);
             if (popup) {
                 const style = popup.getAttribute("style").replace("flex", "none");
@@ -339,7 +339,7 @@
         },
 
         move: function (e) {
-            const code = e.target.getAttribute(ARTCODE_ATTRIBUTE);
+            const code = e.target.getAttribute(ART_CODE_ATTRIBUTE);
             const popup = document.querySelector("div#img-" + code);
             if (popup) {
                 if (popup.offsetWidth + e.clientX + 10 < window.innerWidth - 10) {
@@ -359,16 +359,16 @@
         open: function (e) {
             clearTimeout(Popup._time);
             Popup._time = setTimeout(function () {
-                const code = e.target.getAttribute(ARTCODE_ATTRIBUTE);
+                const code = e.target.getAttribute(ART_CODE_ATTRIBUTE);
                 let url = `https://www.pixiv.net/artworks/${code}`
                 window.open(url, "_blank");
-            }, Popup._timeout)
+            }, CLICK_TIMEOUT)
         },
 
         download: function (e) {
             clearTimeout(Popup._time);
 
-            const code = e.target.getAttribute(ARTCODE_ATTRIBUTE);
+            const code = e.target.getAttribute(ART_CODE_ATTRIBUTE);
             const popup = document.querySelector("div#img-" + code);
             let imageIntro = popup.getElementsByClassName(IMAGE_INTRO_CLASS)[0]
 
@@ -471,6 +471,7 @@
         });
 
         document.addEventListener("securitypolicyviolation", function (e) {
+            console.log("securitypolicyviolation", e)
             if (e.blockedURI.includes("www.pixiv.net")) {
                 const img = document.querySelector(`img[src="${e.blockedURI}"]`);
                 img.remove();
