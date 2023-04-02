@@ -14,9 +14,13 @@
 (function () {
     'use strict';
     const PIXIV_REGEX = new RegExp("pixiv[0-9]{6,9}", "gi");
-
     const ARTLINK_CLASS = 'artlink';
     const ARTCODE_ATTRIBUTE = 'artcode';
+
+    const DEFAULT_HEADERS = {
+        "referer": "https://www.pixiv.net/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:67.0)"
+    }
     const css = `
         .imagepopup {
             min-width: 600px !important;
@@ -82,6 +86,24 @@
         }
     }
 
+    function requestImage(url, imgHandler) {
+        getXmlHttpRequest()({
+            method: "GET",
+            url,
+            headers: DEFAULT_HEADERS,
+            responseType: "blob",
+            onload: function (resp) {
+                const img = document.createElement("img");
+                if (resp.readyState === 4 && resp.status === 200) {
+                    img.src = window.URL.createObjectURL(resp.response);
+                } else if (resp.readyState === 4 && resp.status === 404) {
+                    console.log("work not found")
+                }
+                imgHandler(img)
+            },
+        })
+    }
+
     function getXmlHttpRequest() {
         return (typeof GM !== "undefined" && GM !== null ? GM.xmlHttpRequest : GM_xmlhttpRequest);
     }
@@ -116,14 +138,14 @@
             var e;
             e = document.createElement("a");
             e.classList = ARTLINK_CLASS;
-            e.href = `https://www.pixiv.net/artworks/${code}`
+            e.href = "javascript:;"
             e.innerHTML = artCode;
-            e.target = "_blank";
-            e.rel = "noreferrer";
             e.setAttribute(ARTCODE_ATTRIBUTE, code);
             e.addEventListener("mouseover", Popup.over);
             e.addEventListener("mouseout", Popup.out);
             e.addEventListener("mousemove", Popup.move);
+            e.addEventListener("click", Popup.open)
+            e.addEventListener("dblclick", Popup.download)
             return e;
         },
 
@@ -178,6 +200,8 @@
                 elem.addEventListener("mouseover", Popup.over);
                 elem.addEventListener("mouseout", Popup.out);
                 elem.addEventListener("mousemove", Popup.move);
+                elem.addEventListener("click", Popup.open)
+                elem.addEventListener("dblclick", Popup.download)
             } else {
                 const imagelinks = elem.querySelectorAll("." + ARTLINK_CLASS);
                 for (var i = 0, max = imagelinks.length; i < max; i++) {
@@ -185,6 +209,8 @@
                     artlink.addEventListener("mouseover", Popup.over);
                     artlink.addEventListener("mouseout", Popup.out);
                     artlink.addEventListener("mousemove", Popup.move);
+                    artlink.addEventListener("click", Popup.open)
+                    artlink.addEventListener("dblclick", Popup.download)
                 }
             }
         },
@@ -192,6 +218,9 @@
     }
 
     const Popup = {
+        _time: 300,
+        _timeout: 250,
+
         makePopup: function (e, code) {
             const popup = document.createElement("div");
             popup.className = "imagepopup " + (getAdditionalPopupClasses() || '');
@@ -199,33 +228,15 @@
             popup.style = "display: flex";
             document.body.appendChild(popup);
 
-            const errHTML = "<div class='error'>Work not found.</span>"
+            popup.innerHTML = "<div class='error'>Searching...</span>";
 
             PixivNet.request(code, function (workInfo) {
                 if (workInfo === null) {
-                    popup.innerHTML = errHTML;
+                    popup.innerHTML = "<div class='error'>Work not found.</span>";
                 } else {
-
-                    let url = workInfo["img"]
-                    getXmlHttpRequest()({
-                        method: "GET",
-                        url,
-                        headers: {
-                            "referer": "https://www.pixiv.net/",
-                            "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:67.0)"
-                        },
-                        responseType: "blob",
-                        onload: function (resp) {
-                            const img = document.createElement("img");
-                            if (resp.readyState === 4 && resp.status === 200) {
-                                img.src = window.URL.createObjectURL(resp.response);
-                            } else if (resp.readyState === 4 && resp.status === 404) {
-                                console.log("work not found")
-                            }
-                            imgContainer.appendChild(img);
-                        },
-                    });
-
+                    requestImage(workInfo.img, function (img) {
+                        imgContainer.appendChild(img);
+                    })
 
                     const imgContainer = document.createElement("div")
 
@@ -247,9 +258,9 @@
                     html += `Like: <a>${workInfo.likeCount}</a><br />
                              Page: <a>${workInfo.pageCount}</a><br />
                              Size: <a>${workInfo.width} × ${workInfo.height}</a><br />
-<!--                             Desc: <a>${workInfo.description}</a><br />-->
                     `;
 
+                    // tags
                     html += `Tags: <a>`
                     for (var i = 0, max = workInfo.tags.length; i < max; i++) {
                         if (i != 0 && i % 6 == 0) {
@@ -257,8 +268,11 @@
                         }
                         html += workInfo.tags[i] + "\u3000";
                     }
-                    html += "</a><br /></div>";
+                    html += "</a><br />";
 
+                    html += `Desc: <a>${workInfo.description}</a><br />`
+
+                    html += "</div>";
                     popup.innerHTML = html;
 
                     popup.insertBefore(imgContainer, popup.childNodes[0]);
@@ -305,6 +319,43 @@
                 }
             }
         },
+
+        open: function (e) {
+            clearTimeout(Popup._time);
+            Popup._time = setTimeout(function () {
+                const code = e.target.getAttribute(ARTCODE_ATTRIBUTE);
+                let url = `https://www.pixiv.net/artworks/${code}`
+                window.open(url, "_blank");
+            }, Popup._timeout)
+        },
+
+        download: function (e) {
+            clearTimeout(Popup._time);
+            const code = e.target.getAttribute(ARTCODE_ATTRIBUTE);
+            PixivNet.request(code, function (workInfo) {
+                if (workInfo === null) {
+                    alert("work not found");
+                    return
+                }
+
+                let first = workInfo.original_img
+                let splashIdx = first.lastIndexOf("/")
+                let basename = first.substring(splashIdx + 1)
+                let dir = first.substring(0, splashIdx) + "/"
+
+                for (var i = 0, max = workInfo.pageCount; i < max; i++) {
+                    let newBasename = basename.replace("p0", `p${i}`)
+                    let newUrl = dir + newBasename
+
+                    requestImage(newUrl, function (img) {
+                        const link = document.createElement('a');
+                        link.href = img.src;
+                        link.download = newBasename;
+                        link.click();
+                    })
+                }
+            });
+        }
     }
 
     const PixivNet = {
@@ -342,10 +393,7 @@
             getXmlHttpRequest()({
                 method: "GET",
                 url,
-                headers: {
-                    "referer": "https://www.pixiv.net/",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:67.0)"
-                },
+                headers: DEFAULT_HEADERS,
                 onload: function (resp) {
                     if (resp.readyState === 4 && resp.status === 200) {
                         const dom = new DOMParser().parseFromString(resp.responseText, "text/html");
