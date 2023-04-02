@@ -6,18 +6,32 @@
 
 ## Intro
 
-油猴脚本。扫描 DOM，捕获形如 `pid:99276527` 的字符串，mouseover 即可预览。mouseout 即可隐藏。单击即可跳转到图片对应 pixiv 页面，双击即可下载。
+油猴脚本。
+
+扫描页面，捕获形如 `pid:99276527` 的 Text，将其高亮，且：
+
+- mouseover：预览
+- mouseout：隐藏预览
+- click：跳转到对应 pixiv 页面
+- double click：下载图片
+
+> 实际的捕获规则更宽松一些：正则`RegExp("pid[^0-9]?([0-9]{6,9})", "gi")`
+
+
 
 ![pixiv-previewer](pixiv-previewer.gif)
+
+（上图的关键字捕获规则是旧版的，图片懒得改了）
 
 
 
 ## NOTE
 
-请不要把此工具用作爬虫。
+脚本仅为个人方便使用，请不要把此工具用作爬虫。
 
 
 
 ## License
 
 MIT
+
