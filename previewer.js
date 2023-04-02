@@ -183,7 +183,7 @@
                 else
                     upper = matches[i + 1].index;
                 let substring;
-                if (substring = nodeOriginalText.substring(matches[i].index + matches[i].value.length, upper)) {
+                if (substring === nodeOriginalText.substring(matches[i].index + matches[i].value.length, upper)) {
                     const subtextNode = document.createTextNode(substring);
                     textNode.parentNode.insertBefore(
                         subtextNode,
@@ -349,12 +349,10 @@
             } else {
                 _div = titles[0];
             }
-            console.log(titles, _div)
             _div.innerText = "Downloading...";
 
             imageIntro.insertBefore(_div, imageIntro.firstChild);
 
-            let once = true;
             PixivNet.request(code, function (workInfo) {
                 if (workInfo === null) {
                     alert("work not found");
@@ -377,10 +375,7 @@
                         link.download = _basename;
                         link.click();
 
-                        if (once) {
-                            _div.innerText = "Downloaded";
-                            once = false;
-                        }
+                        _div.innerText = `Downloaded`;
                     })
                 }
             });
