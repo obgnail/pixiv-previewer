@@ -262,14 +262,16 @@
                     // tags
                     html += `Tags: <a>`
                     for (var i = 0, max = workInfo.tags.length; i < max; i++) {
-                        // if (i != 0 && i % 6 == 0) {
-                        //     html += `<br />` + "\u3000\u3000"
-                        // }
                         html += workInfo.tags[i] + "\u3000";
                     }
                     html += "</a><br />";
 
-                    html += `Desc: <a>${workInfo.description}</a><br />`
+                    let desc = workInfo.description
+                    let maxLen = 200
+                    if (desc.length > maxLen) {
+                        desc = desc.substring(0, maxLen) + "..."
+                    }
+                    html += `Desc: <a>${desc}</a><br />`
 
                     html += "</div>";
                     popup.innerHTML = html;
