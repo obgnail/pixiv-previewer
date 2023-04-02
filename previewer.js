@@ -13,8 +13,10 @@
 
 (function () {
     'use strict';
-    const PIXIV_REGEX = new RegExp("pid[:：=\-]?([0-9]{6,9})", "gi");
+    // const PIXIV_REGEX = new RegExp("pid[:：=\-]?([0-9]{6,9})", "gi");
+    const PIXIV_REGEX = new RegExp("pid[^0-9]?([0-9]{6,9})", "gi");
     const ARTLINK_CLASS = 'artlink';
+    const IMAGE_INTRO_CLASS = 'image-intro'
     const ARTCODE_ATTRIBUTE = 'artcode';
 
     const DEFAULT_HEADERS = {
@@ -59,7 +61,7 @@
             opacity: 0.3;
         }
 
-        .error {
+        .message {
             height: 210px;
             line-height: 210px;
             text-align: center;
@@ -227,11 +229,11 @@
             popup.style = "display: flex";
             document.body.appendChild(popup);
 
-            popup.innerHTML = "<div class='error'>Searching...</span>";
+            popup.innerHTML = "<div class='message'>Searching...</span>";
 
             PixivNet.request(code, function (workInfo) {
                 if (workInfo === null) {
-                    popup.innerHTML = "<div class='error'>Work not found.</span>";
+                    popup.innerHTML = "<div class='message'>Work not found.</span>";
                 } else {
                     requestImage(workInfo.img, function (img) {
                         imgContainer.appendChild(img);
@@ -239,7 +241,7 @@
 
                     const imgContainer = document.createElement("div")
 
-                    let html = `<div>
+                    let html = `<div class=${IMAGE_INTRO_CLASS}>
                             Title: <a>${workInfo.title}</a><br />
                             Code: <a>${workInfo.code}</a><br />
                             Author: <a>${workInfo.author}</a><br />
@@ -266,12 +268,14 @@
                     }
                     html += "</a><br />";
 
-                    let desc = workInfo.description
-                    let maxLen = 200
-                    if (desc.length > maxLen) {
-                        desc = desc.substring(0, maxLen) + "..."
+                    if (workInfo.description.length !== 0) {
+                        let desc = workInfo.description
+                        let maxLen = 200
+                        if (desc.length > maxLen) {
+                            desc = desc.substring(0, maxLen) + "..."
+                        }
+                        html += `Desc: <a>${desc}</a><br />`
                     }
-                    html += `Desc: <a>${desc}</a><br />`
 
                     html += "</div>";
                     popup.innerHTML = html;
@@ -332,12 +336,19 @@
 
         download: function (e) {
             clearTimeout(Popup._time);
-            const code = e.target.getAttribute(ARTCODE_ATTRIBUTE);
-            // const popup = document.querySelector("div#img-" + code);
-            // if (popup) {
-            //     console.log(popup)
-            // }
 
+            const _div = document.createElement("div");
+            _div.className = "image-title";
+            _div.innerText = "Downloading...";
+
+            const code = e.target.getAttribute(ARTCODE_ATTRIBUTE);
+            const popup = document.querySelector("div#img-" + code);
+            let imageIntro = popup.getElementsByClassName(IMAGE_INTRO_CLASS)[0]
+
+            let firstChild = imageIntro.firstChild
+            imageIntro.insertBefore(_div, firstChild)
+
+            let once = true;
             PixivNet.request(code, function (workInfo) {
                 if (workInfo === null) {
                     alert("work not found");
@@ -359,6 +370,11 @@
                         link.href = img.src;
                         link.download = _basename;
                         link.click();
+
+                        if (once) {
+                            imageIntro.removeChild(_div)
+                            once = false;
+                        }
                     })
                 }
             });
