@@ -337,16 +337,22 @@
         download: function (e) {
             clearTimeout(Popup._time);
 
-            const _div = document.createElement("div");
-            _div.className = "image-title";
-            _div.innerText = "Downloading...";
-
             const code = e.target.getAttribute(ARTCODE_ATTRIBUTE);
             const popup = document.querySelector("div#img-" + code);
             let imageIntro = popup.getElementsByClassName(IMAGE_INTRO_CLASS)[0]
 
-            let firstChild = imageIntro.firstChild
-            imageIntro.insertBefore(_div, firstChild)
+            let _div;
+            let titles = imageIntro.getElementsByClassName("image-title")
+            if (titles.length === 0) {
+                _div = document.createElement("div");
+                _div.className = "image-title";
+            } else {
+                _div = titles[0];
+            }
+            console.log(titles, _div)
+            _div.innerText = "Downloading...";
+
+            imageIntro.insertBefore(_div, imageIntro.firstChild);
 
             let once = true;
             PixivNet.request(code, function (workInfo) {
@@ -372,7 +378,7 @@
                         link.click();
 
                         if (once) {
-                            imageIntro.removeChild(_div)
+                            _div.innerText = "Downloaded";
                             once = false;
                         }
                     })
